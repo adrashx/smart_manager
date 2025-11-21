@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 font-['Noto_Sans'] text-gray-800">
+
+    <!-- Navbar -->
+    <header class="bg-gray-900 text-white shadow-xl sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-gray-800 p-2 rounded-lg border border-gray-700">
+                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-wide">MANAGER DASHBOARD</h1>
+                    <p class="text-xs text-gray-500 font-bold uppercase">Real-time Sales Monitor</p>
+                </div>
+            </div>
+            <div class="text-right bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
+                <p class="text-xs text-gray-400 uppercase font-bold">Total Revenue</p>
+                <p class="text-2xl font-black text-green-400 tracking-tighter" id="daily-total">₹0</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto p-6">
+        <!-- Controls -->
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-black text-gray-800 flex items-center gap-2">
+                LIVE ORDERS
+                <span id="live-indicator" class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
+            </h2>
+            <button onclick="forceRefresh()" id="refresh-btn" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                REFRESH DATA
+            </button>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="p-4 text-xs font-black text-gray-400 uppercase tracking-wider">Time</th>
+                            <th class="p-4 text-xs font-black text-gray-400 uppercase tracking-wider">Table</th>
+                            <th class="p-4 text-xs font-black text-gray-400 uppercase tracking-wider w-1/3">Order Details</th>
+                            <th class="p-4 text-xs font-black text-gray-400 uppercase tracking-wider text-right">Amount</th>
+                            <th class="p-4 text-xs font-black text-gray-400 uppercase tracking-wider text-center">Status</th>
+                            <th class="p-4 text-xs font-black text-gray-400 uppercase tracking-wider text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-gray-100 text-sm">
+                        <tr><td colspan="6" class="p-12 text-center text-gray-400 font-bold">CONNECTING TO DATABASE...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6iECjxKAcJn7V44UD5WPw0OJ7fmDf6Ct6i50PTf479kebDfJFO7Y-GSh5KlOlIOkKfQ/exec";
+        
+        // Init
+        fetchOrders();
+        setInterval(fetchOrders, 10000);
+
+        function forceRefresh() {
+            const btn = document.getElementById('refresh-btn');
+            btn.classList.add('animate-pulse', 'bg-gray-100');
+            btn.innerHTML = "LOADING...";
+            fetchOrders().then(() => {
+                btn.classList.remove('animate-pulse', 'bg-gray-100');
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> REFRESH DATA`;
+            });
+        }
+
+        function fetchOrders() {
+            return fetch(`${SCRIPT_URL}?t=${Date.now()}`)
+                .then(res => {
+                    if (!res.ok) throw new Error("Failed");
+                    return res.json();
+                })
+                .then(data => {
+                    renderTable(data.orders);
+                    calculateTotal(data.orders);
+                    document.getElementById('live-indicator').classList.remove('bg-red-500');
+                    document.getElementById('live-indicator').classList.add('bg-green-500', 'animate-pulse');
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('live-indicator').classList.remove('bg-green-500', 'animate-pulse');
+                    document.getElementById('live-indicator').classList.add('bg-red-500');
+                    // Don't wipe table on error, just show indicator change
+                });
+        }
+
+        function calculateTotal(orders) {
+            const total = orders
+                .filter(o => o.status === 'Paid')
+                .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+            document.getElementById('daily-total').innerText = '₹' + total.toLocaleString('en-IN');
+        }
+
+        function renderTable(orders) {
+            const tbody = document.getElementById('table-body');
+            if (orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-12 text-center text-gray-400 font-bold">NO ORDERS TODAY</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = orders.map(order => {
+                let statusStyle = 'bg-gray-100 text-gray-600 border-gray-200';
+                if (order.status === 'Pending') statusStyle = 'bg-yellow-100 text-yellow-700 border-yellow-200';
+                if (order.status === 'Ready') statusStyle = 'bg-blue-100 text-blue-700 border-blue-200';
+                if (order.status === 'Paid') statusStyle = 'bg-green-100 text-green-700 border-green-200';
+
+                const isPaid = order.status === 'Paid';
+
+                return `
+                <tr class="hover:bg-gray-50 transition group ${isPaid ? 'bg-gray-50/50' : 'bg-white'}">
+                    <td class="p-4 text-gray-500 font-medium">${new Date(order.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                    <td class="p-4 font-black text-gray-800 text-lg">#${order.table}</td>
+                    <td class="p-4">
+                        <div class="flex flex-wrap gap-1">
+                            ${order.items.map(i => `
+                                <span class="inline-block bg-gray-100 px-2 py-1 rounded text-xs font-bold text-gray-700 border border-gray-200">
+                                    ${i.count}x ${i.name}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </td>
+                    <td class="p-4 text-right font-black text-gray-800">₹${order.total}</td>
+                    <td class="p-4 text-center">
+                        <span class="px-3 py-1 rounded-full text-xs font-black uppercase border ${statusStyle}">${order.status}</span>
+                    </td>
+                    <td class="p-4 text-center">
+                        ${!isPaid ? `
+                            <button onclick="markPaid('${order.id}', this)" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg transform active:scale-95 flex items-center justify-center gap-1 w-full">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                ${order.status === 'Ready' ? 'SETTLE BILL' : 'MARK PAID'}
+                            </button>
+                        ` : '<span class="text-green-500 font-black text-lg">✓</span>'}
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function markPaid(id, btn) {
+            if(!confirm("Confirm payment received for this order?")) return;
+            
+            btn.innerHTML = "...";
+            btn.disabled = true;
+
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'update', id: id, status: 'Paid' })
+            }).then(() => {
+                setTimeout(fetchOrders, 500); // Refresh
+            });
+        }
+    </script>
+</body>
+</html>
